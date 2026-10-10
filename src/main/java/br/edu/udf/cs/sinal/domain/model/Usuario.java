@@ -46,6 +46,9 @@ public class Usuario {
         this.ativo = ativo;
     }
 
+    public Usuario(Long id, String nome, String cpf, String email, String senhaHash, Instant dataCadastro, Boolean ativo) {
+    }
+
     public static String normalizarCpf(String cpf) {
         return cpf.replaceAll("\\D", "");
     }

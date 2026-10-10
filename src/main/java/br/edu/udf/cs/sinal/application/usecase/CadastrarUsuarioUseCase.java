@@ -3,7 +3,9 @@ package br.edu.udf.cs.sinal.application.usecase;
 import br.edu.udf.cs.sinal.application.command.CadastrarUsuarioCommand;
 import br.edu.udf.cs.sinal.domain.model.Usuario;
 import br.edu.udf.cs.sinal.domain.repositories.UsuarioRepository;
+import org.springframework.stereotype.Service;
 
+@Service
 public class CadastrarUsuarioUseCase {
 
     private final UsuarioRepository usuarioRepository;
