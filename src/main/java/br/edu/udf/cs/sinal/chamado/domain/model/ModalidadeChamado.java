@@ -1,4 +1,4 @@
-package br.edu.udf.cs.sinal.chamado.domain;
+package br.edu.udf.cs.sinal.chamado.domain.model;
 
 public enum ModalidadeChamado {
 

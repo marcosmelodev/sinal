@@ -1,4 +1,4 @@
-package br.edu.udf.cs.sinal.chamado.domain;
+package br.edu.udf.cs.sinal.chamado.domain.model;
 
 import br.edu.udf.cs.sinal.compartilhado.domain.DominioException;
 import br.edu.udf.cs.sinal.compartilhado.domain.Localizacao;
