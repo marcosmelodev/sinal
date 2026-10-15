@@ -1,6 +1,6 @@
 package br.edu.udf.cs.sinal.domain.model;
 
-import br.edu.udf.cs.sinal.domain.enums.OrgaoSeguranca;
+import br.edu.udf.cs.sinal.compartilhado.domain.OrgaoSeguranca;
 
 public class OcorrenciaTipo {
 

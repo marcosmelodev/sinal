@@ -1,6 +1,6 @@
 package br.edu.udf.cs.sinal.insfrastructure.persistence.adapter;
 
-import br.edu.udf.cs.sinal.domain.enums.OrgaoSeguranca;
+import br.edu.udf.cs.sinal.compartilhado.domain.OrgaoSeguranca;
 import br.edu.udf.cs.sinal.domain.model.OcorrenciaTipo;
 import br.edu.udf.cs.sinal.domain.repositories.OcorrenciaTipoRepository;
 import br.edu.udf.cs.sinal.insfrastructure.persistence.OcorrenciaTipoEntity;

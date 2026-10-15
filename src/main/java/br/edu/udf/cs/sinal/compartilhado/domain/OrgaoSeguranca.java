@@ -1,4 +1,4 @@
-package br.edu.udf.cs.sinal.domain.enums;
+package br.edu.udf.cs.sinal.compartilhado.domain;
 
 public enum OrgaoSeguranca {
 

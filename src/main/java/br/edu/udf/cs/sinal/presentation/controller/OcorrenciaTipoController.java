@@ -1,7 +1,7 @@
 package br.edu.udf.cs.sinal.presentation.controller;
 
 import br.edu.udf.cs.sinal.application.usecase.ListarOcorrenciasPorOrgaoUseCase;
-import br.edu.udf.cs.sinal.domain.enums.OrgaoSeguranca;
+import br.edu.udf.cs.sinal.compartilhado.domain.OrgaoSeguranca;
 import br.edu.udf.cs.sinal.presentation.dto.response.OcorrenciaTipoResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
