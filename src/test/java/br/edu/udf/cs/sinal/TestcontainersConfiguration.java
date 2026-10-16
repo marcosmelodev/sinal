@@ -10,9 +10,13 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 
-    @Bean
+    // Um único container por execução, compartilhado por todos os contextos de teste (@SpringBootTest e fatias).
+    // destroyMethod vazio: o fechamento de um contexto não derruba o container dos demais; o Ryuk o remove ao final.
+    private static final MySQLContainer MYSQL = new MySQLContainer(DockerImageName.parse("mysql:8.4"));
+
+    @Bean(destroyMethod = "")
     @ServiceConnection
     MySQLContainer mysqlContainer() {
-        return new MySQLContainer(DockerImageName.parse("mysql:8.4"));
+        return MYSQL;
     }
 }
