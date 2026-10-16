@@ -2,11 +2,13 @@ package br.edu.udf.cs.sinal.insfrastructure.persistence;
 
 import br.edu.udf.cs.sinal.domain.model.Usuario;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "tb_usuario")
+@Table(name = "usuario")
 public class UsuarioEntity {
 
     @Id
@@ -16,10 +18,11 @@ public class UsuarioEntity {
     @Column(nullable = false, length = 150)
     private String nome;
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, unique = true, length = 11)
     private String cpf;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, unique = true, length = 254)
     private String email;
 
     @Column(nullable = false, length = 255)

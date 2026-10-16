@@ -3,9 +3,11 @@ package br.edu.udf.cs.sinal.insfrastructure.persistence;
 import br.edu.udf.cs.sinal.compartilhado.domain.OrgaoSeguranca;
 import br.edu.udf.cs.sinal.domain.model.OcorrenciaTipo;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "tb_ocorrencia_tipo")
+@Table(name = "ocorrencia_tipo")
 public class OcorrenciaTipoEntity {
 
     @Id
@@ -16,6 +18,7 @@ public class OcorrenciaTipoEntity {
     private String codigo;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private OrgaoSeguranca orgao;
 
