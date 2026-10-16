@@ -413,7 +413,7 @@ class ChamadoTest {
 
             assertThat(metodosPublicos).noneMatch(nome -> nome.startsWith("set"));
             assertThat(metodosPublicos).filteredOn(nome -> !nome.startsWith("get"))
-                    .containsExactlyInAnyOrder("registrar", "registrarEmergenciaImediata",
+                    .containsExactlyInAnyOrder("registrar", "registrarEmergenciaImediata", "reconstituir",
                             "encaminharSimulado", "encerrar");
         }
 
@@ -470,6 +470,201 @@ class ChamadoTest {
             assertThat(chamado.getModalidade()).isEqualTo(ModalidadeChamado.PADRAO);
             assertThat(chamado.getBaixaPrecisao()).isFalse();
             assertThat(chamado.getDataCriacao()).isEqualTo(T0);
+        }
+    }
+
+    @Nested
+    class Reconstituicao {
+
+        private static final Long ID = 42L;
+        private static final Transicao CRIADO_T0 = new Transicao(EstadoChamado.CRIADO, T0);
+        private static final Transicao ENCAMINHADO_T1 = new Transicao(EstadoChamado.ENCAMINHADO_SIMULADO, T1);
+        private static final Transicao ENCERRADO_T2 = new Transicao(EstadoChamado.ENCERRADO, T2);
+
+        private Chamado padrao(EstadoChamado estado, List<Transicao> transicoes) {
+            return Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU, OCORRENCIA_ID,
+                    LOCALIZACAO, false, "Detalhe", estado, T0, transicoes);
+        }
+
+        @Test
+        void devePreservarTodosOsCamposDoPadrao() {
+            Chamado chamado = padrao(EstadoChamado.ENCAMINHADO_SIMULADO, List.of(CRIADO_T0, ENCAMINHADO_T1));
+
+            assertThat(chamado.getId()).isEqualTo(ID);
+            assertThat(chamado.getUsuarioId()).isEqualTo(USUARIO_ID);
+            assertThat(chamado.getModalidade()).isEqualTo(ModalidadeChamado.PADRAO);
+            assertThat(chamado.getOrgao()).isEqualTo(OrgaoSeguranca.SAMU);
+            assertThat(chamado.getOcorrenciaId()).isEqualTo(OCORRENCIA_ID);
+            assertThat(chamado.getLocalizacao()).isEqualTo(LOCALIZACAO);
+            assertThat(chamado.getBaixaPrecisao()).isFalse();
+            assertThat(chamado.getDetalheAdicional()).isEqualTo("Detalhe");
+            assertThat(chamado.getEstado()).isEqualTo(EstadoChamado.ENCAMINHADO_SIMULADO);
+            assertThat(chamado.getDataCriacao()).isEqualTo(T0);
+            assertThat(chamado.getTransicoes()).containsExactly(CRIADO_T0, ENCAMINHADO_T1);
+        }
+
+        @Test
+        void devePreservarEmergenciaImediata() {
+            Chamado chamado = Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.EMERGENCIA_IMEDIATA,
+                    OrgaoSeguranca.POLICIA_MILITAR, null, LOCALIZACAO, true, null, EstadoChamado.CRIADO, T0,
+                    List.of(CRIADO_T0));
+
+            assertThat(chamado.getModalidade()).isEqualTo(ModalidadeChamado.EMERGENCIA_IMEDIATA);
+            assertThat(chamado.getOrgao()).isEqualTo(OrgaoSeguranca.POLICIA_MILITAR);
+            assertThat(chamado.getOcorrenciaId()).isNull();
+            assertThat(chamado.getDetalheAdicional()).isNull();
+            assertThat(chamado.getBaixaPrecisao()).isTrue();
+        }
+
+        // N2: o valor gravado prevalece, mesmo que o limiar atual levasse a outro resultado.
+        @Test
+        void devePreservarBaixaPrecisaoGravadoSemRecalcular() {
+            Chamado chamado = Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    OCORRENCIA_ID, localizacaoComPrecisao(10.0f), true, null, EstadoChamado.CRIADO, T0,
+                    List.of(CRIADO_T0));
+
+            assertThat(chamado.getBaixaPrecisao()).isTrue();
+        }
+
+        @Test
+        void devePreservarOsTresEstadosPossiveis() {
+            assertThat(padrao(EstadoChamado.CRIADO, List.of(CRIADO_T0)).getTransicoes()).hasSize(1);
+            assertThat(padrao(EstadoChamado.ENCAMINHADO_SIMULADO, List.of(CRIADO_T0, ENCAMINHADO_T1))
+                    .getTransicoes()).hasSize(2);
+            assertThat(padrao(EstadoChamado.ENCERRADO, List.of(CRIADO_T0, ENCAMINHADO_T1, ENCERRADO_T2))
+                    .getEstado()).isEqualTo(EstadoChamado.ENCERRADO);
+        }
+
+        @Test
+        void deveContinuarProtegendoAMaquinaDeEstados() {
+            Chamado criado = padrao(EstadoChamado.CRIADO, List.of(CRIADO_T0));
+            assertRejeitadaSemAlterar(criado, c -> c.encerrar(T1), "CHAMADO_TRANSICAO_INVALIDA");
+
+            Chamado encaminhado = padrao(EstadoChamado.ENCAMINHADO_SIMULADO, List.of(CRIADO_T0, ENCAMINHADO_T1));
+            assertRejeitadaSemAlterar(encaminhado, c -> c.encerrar(T0), "CHAMADO_INSTANTE_INVALIDO");
+            encaminhado.encerrar(T2);
+            assertThat(encaminhado.getTransicoes()).containsExactly(CRIADO_T0, ENCAMINHADO_T1, ENCERRADO_T2);
+        }
+
+        @Test
+        void naoDeveCompartilharAListaRecebida() {
+            List<Transicao> transicoes = new java.util.ArrayList<>(List.of(CRIADO_T0));
+            Chamado chamado = padrao(EstadoChamado.CRIADO, transicoes);
+
+            transicoes.add(ENCAMINHADO_T1);
+
+            assertThat(chamado.getTransicoes()).containsExactly(CRIADO_T0);
+        }
+
+        @Test
+        void deveApararODetalhe() {
+            Chamado chamado = Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    OCORRENCIA_ID, LOCALIZACAO, false, "  Detalhe  ", EstadoChamado.CRIADO, T0, List.of(CRIADO_T0));
+
+            assertThat(chamado.getDetalheAdicional()).isEqualTo("Detalhe");
+        }
+
+        @Test
+        void deveRejeitarNulosEstruturais() {
+            List<Runnable> casos = List.of(
+                    () -> Chamado.reconstituir(null, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                            OCORRENCIA_ID, LOCALIZACAO, false, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    () -> Chamado.reconstituir(ID, USUARIO_ID, null, OrgaoSeguranca.SAMU,
+                            OCORRENCIA_ID, LOCALIZACAO, false, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    () -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                            OCORRENCIA_ID, LOCALIZACAO, null, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    () -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                            OCORRENCIA_ID, LOCALIZACAO, false, null, null, T0, List.of(CRIADO_T0)),
+                    () -> padrao(EstadoChamado.CRIADO, null),
+                    () -> padrao(EstadoChamado.CRIADO, List.of()),
+                    () -> padrao(EstadoChamado.CRIADO, java.util.Arrays.asList(CRIADO_T0, null)));
+
+            assertThat(casos).allSatisfy(caso ->
+                    assertThatThrownBy(caso::run).isInstanceOf(IllegalArgumentException.class));
+        }
+
+        @Test
+        void deveAplicarCH1() {
+            assertCodigo(() -> Chamado.reconstituir(ID, null, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    OCORRENCIA_ID, LOCALIZACAO, false, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    "CHAMADO_USUARIO_OBRIGATORIO");
+            assertCodigo(() -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    OCORRENCIA_ID, null, false, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    "CHAMADO_LOCALIZACAO_OBRIGATORIA");
+        }
+
+        @Test
+        void deveRejeitarDataDeCriacaoNula() {
+            assertCodigo(() -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    OCORRENCIA_ID, LOCALIZACAO, false, null, EstadoChamado.CRIADO, null, List.of(CRIADO_T0)),
+                    "CHAMADO_INSTANTE_INVALIDO");
+        }
+
+        @Test
+        void deveRejeitarEmergenciaImediataIncoerente() {
+            List<Runnable> casos = List.of(
+                    () -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.EMERGENCIA_IMEDIATA,
+                            OrgaoSeguranca.SAMU, null, LOCALIZACAO, false, null, EstadoChamado.CRIADO, T0,
+                            List.of(CRIADO_T0)),
+                    () -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.EMERGENCIA_IMEDIATA,
+                            OrgaoSeguranca.POLICIA_MILITAR, OCORRENCIA_ID, LOCALIZACAO, false, null,
+                            EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    () -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.EMERGENCIA_IMEDIATA,
+                            OrgaoSeguranca.POLICIA_MILITAR, null, LOCALIZACAO, false, "Detalhe",
+                            EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)));
+
+            assertThat(casos).allSatisfy(caso ->
+                    assertThatThrownBy(caso::run).isInstanceOf(IllegalArgumentException.class));
+        }
+
+        @Test
+        void deveAplicarCH3() {
+            assertCodigo(() -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, null,
+                    OCORRENCIA_ID, LOCALIZACAO, false, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    "CHAMADO_ORGAO_OBRIGATORIO");
+            assertCodigo(() -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    null, LOCALIZACAO, false, null, EstadoChamado.CRIADO, T0, List.of(CRIADO_T0)),
+                    "CHAMADO_OCORRENCIA_OBRIGATORIA");
+        }
+
+        @Test
+        void deveAplicarCH4() {
+            assertCodigo(() -> Chamado.reconstituir(ID, USUARIO_ID, ModalidadeChamado.PADRAO, OrgaoSeguranca.SAMU,
+                    OCORRENCIA_ID, LOCALIZACAO, false, "a".repeat(501), EstadoChamado.CRIADO, T0,
+                    List.of(CRIADO_T0)), "CHAMADO_DETALHE_EXCEDE_LIMITE");
+        }
+
+        @Test
+        void deveRejeitarPrimeiraTransicaoDiferenteDeCriadoNaCriacao() {
+            assertCodigo(() -> padrao(EstadoChamado.ENCAMINHADO_SIMULADO, List.of(ENCAMINHADO_T1)),
+                    "CHAMADO_TRANSICAO_INVALIDA");
+            assertCodigo(() -> padrao(EstadoChamado.CRIADO, List.of(new Transicao(EstadoChamado.CRIADO, T1))),
+                    "CHAMADO_TRANSICAO_INVALIDA");
+        }
+
+        @Test
+        void deveRejeitarSequenciaForaDoCicloDeVida() {
+            assertCodigo(() -> padrao(EstadoChamado.ENCERRADO, List.of(CRIADO_T0, ENCERRADO_T2)),
+                    "CHAMADO_TRANSICAO_INVALIDA");
+            assertCodigo(() -> padrao(EstadoChamado.CRIADO,
+                    List.of(CRIADO_T0, ENCAMINHADO_T1, new Transicao(EstadoChamado.CRIADO, T2))),
+                    "CHAMADO_TRANSICAO_INVALIDA");
+            assertCodigo(() -> padrao(EstadoChamado.ENCERRADO,
+                    List.of(CRIADO_T0, ENCAMINHADO_T1, ENCERRADO_T2, ENCERRADO_T2)),
+                    "CHAMADO_TRANSICAO_INVALIDA");
+        }
+
+        @Test
+        void deveRejeitarInstantesDecrescentes() {
+            assertCodigo(() -> padrao(EstadoChamado.ENCAMINHADO_SIMULADO,
+                    List.of(CRIADO_T0, new Transicao(EstadoChamado.ENCAMINHADO_SIMULADO, T0.minusMillis(1)))),
+                    "CHAMADO_INSTANTE_INVALIDO");
+        }
+
+        @Test
+        void deveRejeitarEstadoDiferenteDaUltimaTransicao() {
+            assertCodigo(() -> padrao(EstadoChamado.ENCERRADO, List.of(CRIADO_T0, ENCAMINHADO_T1)),
+                    "CHAMADO_TRANSICAO_INVALIDA");
         }
     }
 }

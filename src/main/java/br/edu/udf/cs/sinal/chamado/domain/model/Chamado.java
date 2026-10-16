@@ -7,6 +7,7 @@ import br.edu.udf.cs.sinal.compartilhado.domain.OrgaoSeguranca;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class Chamado {
 
@@ -20,8 +21,12 @@ public class Chamado {
 
     public static final int LIMITE_DETALHE_ADICIONAL = 500;
 
+    // CH7: única sequência válida do ciclo de vida.
+    private static final List<EstadoChamado> SEQUENCIA_DE_ESTADOS = List.of(
+            EstadoChamado.CRIADO, EstadoChamado.ENCAMINHADO_SIMULADO, EstadoChamado.ENCERRADO);
+
     // Atribuído pela persistência; nulo até o Chamado ser salvo.
-    private Long id;
+    private final Long id;
     private final Long usuarioId;
     private final ModalidadeChamado modalidade;
     private final OrgaoSeguranca orgao;
@@ -35,6 +40,7 @@ public class Chamado {
 
     private Chamado(Long usuarioId, ModalidadeChamado modalidade, OrgaoSeguranca orgao, Long ocorrenciaId,
                     Localizacao localizacao, String detalheAdicional, Float limiarBaixaPrecisao, Instant instante) {
+        this.id = null;
         this.usuarioId = usuarioId;
         this.modalidade = modalidade;
         this.orgao = orgao;
@@ -47,6 +53,23 @@ public class Chamado {
         // CH6
         this.estado = EstadoChamado.CRIADO;
         this.transicoes.add(new Transicao(EstadoChamado.CRIADO, instante));
+    }
+
+    // Reconstituição: baixaPrecisao é o valor gravado no registro (N2), nunca recalculado.
+    private Chamado(Long id, Long usuarioId, ModalidadeChamado modalidade, OrgaoSeguranca orgao, Long ocorrenciaId,
+                    Localizacao localizacao, Boolean baixaPrecisao, String detalheAdicional, EstadoChamado estado,
+                    Instant dataCriacao, List<Transicao> transicoes) {
+        this.id = id;
+        this.usuarioId = usuarioId;
+        this.modalidade = modalidade;
+        this.orgao = orgao;
+        this.ocorrenciaId = ocorrenciaId;
+        this.localizacao = localizacao;
+        this.baixaPrecisao = baixaPrecisao;
+        this.detalheAdicional = detalheAdicional;
+        this.estado = estado;
+        this.dataCriacao = dataCriacao;
+        this.transicoes.addAll(transicoes);
     }
 
     public static Chamado registrar(Long usuarioId, OrgaoSeguranca orgao, Long ocorrenciaId, Localizacao localizacao,
@@ -72,6 +95,64 @@ public class Chamado {
         validarInstanteInformado(instante);
         return new Chamado(usuarioId, ModalidadeChamado.EMERGENCIA_IMEDIATA, OrgaoSeguranca.POLICIA_MILITAR, null,
                 localizacao, null, limiarBaixaPrecisao, instante);
+    }
+
+    // Usada pela persistência; aplica CH1 a CH8. Nulos estruturais e EI incoerente indicam dados corrompidos.
+    public static Chamado reconstituir(Long id, Long usuarioId, ModalidadeChamado modalidade, OrgaoSeguranca orgao,
+                                       Long ocorrenciaId, Localizacao localizacao, Boolean baixaPrecisao,
+                                       String detalheAdicional, EstadoChamado estado, Instant dataCriacao,
+                                       List<Transicao> transicoes) {
+        if (id == null || modalidade == null || estado == null || baixaPrecisao == null
+                || transicoes == null || transicoes.isEmpty() || transicoes.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException(
+                    "id, modalidade, estado, baixaPrecisao e transições são obrigatórios na reconstituição.");
+        }
+        validarUsuarioELocalizacao(usuarioId, localizacao);
+        validarInstanteInformado(dataCriacao);
+        String detalheNormalizado;
+        if (modalidade == ModalidadeChamado.EMERGENCIA_IMEDIATA) {
+            if (orgao != OrgaoSeguranca.POLICIA_MILITAR || ocorrenciaId != null || detalheAdicional != null) {
+                throw new IllegalArgumentException(
+                        "Emergência Imediata reconstituída com órgão, ocorrência ou detalhe incoerentes.");
+            }
+            detalheNormalizado = null;
+        } else {
+            if (orgao == null) {
+                throw new DominioException(ORGAO_OBRIGATORIO, "O órgão de segurança é obrigatório.");
+            }
+            if (ocorrenciaId == null) {
+                throw new DominioException(OCORRENCIA_OBRIGATORIA, "A ocorrência é obrigatória.");
+            }
+            detalheNormalizado = normalizarDetalhe(detalheAdicional);
+        }
+        validarHistorico(transicoes, dataCriacao, estado);
+        return new Chamado(id, usuarioId, modalidade, orgao, ocorrenciaId, localizacao, baixaPrecisao,
+                detalheNormalizado, estado, dataCriacao, transicoes);
+    }
+
+    // CH6 a CH8: o histórico é um prefixo de CRIADO -> ENCAMINHADO_SIMULADO -> ENCERRADO, iniciado na criação,
+    // com instantes não decrescentes e terminando no estado atual.
+    private static void validarHistorico(List<Transicao> transicoes, Instant dataCriacao, EstadoChamado estado) {
+        if (transicoes.size() > SEQUENCIA_DE_ESTADOS.size()) {
+            throw historicoInvalido();
+        }
+        for (int i = 0; i < transicoes.size(); i++) {
+            if (transicoes.get(i).getEstado() != SEQUENCIA_DE_ESTADOS.get(i)) {
+                throw historicoInvalido();
+            }
+            if (i > 0 && transicoes.get(i).getOcorridoEm().isBefore(transicoes.get(i - 1).getOcorridoEm())) {
+                throw new DominioException(INSTANTE_INVALIDO,
+                        "Os instantes das transições não podem diminuir.");
+            }
+        }
+        if (!transicoes.get(0).getOcorridoEm().equals(dataCriacao)
+                || transicoes.get(transicoes.size() - 1).getEstado() != estado) {
+            throw historicoInvalido();
+        }
+    }
+
+    private static DominioException historicoInvalido() {
+        return new DominioException(TRANSICAO_INVALIDA, "Histórico de transições inconsistente.");
     }
 
     public void encaminharSimulado(Instant instante) {
