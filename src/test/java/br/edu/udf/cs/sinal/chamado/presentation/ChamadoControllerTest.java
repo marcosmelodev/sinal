@@ -21,6 +21,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -34,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -369,5 +371,144 @@ class ChamadoControllerTest {
         assertThat(eventos).hasSize(1);
         assertThat(eventos.get(0).evento().chamadoId()).isEqualTo(id);
         assertThat(eventos.get(0).chamadoJaCommitado()).isTrue();
+    }
+
+    // ---- Histórico (Etapa 8.4b) ----
+
+    private Long registrarEmergencia(Long usuarioId, String chave) throws Exception {
+        String resposta = enviar(URL_EI, usuarioId, chave, "{\"localizacao\": " + localizacao(25.5) + "}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return Long.valueOf(resposta.replaceAll(".*\"id\":(\\d+).*", "$1"));
+    }
+
+    private ResultActions historico(Long usuarioId, String parametros) throws Exception {
+        return mockMvc.perform(get(URL + parametros).header("X-Usuario-Id", String.valueOf(usuarioId)));
+    }
+
+    private static List<Long> idsDe(String json) {
+        List<Long> ids = new ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"id\":(\\d+),\"codigoSimulacao\"").matcher(json);
+        while (m.find()) {
+            ids.add(Long.valueOf(m.group(1)));
+        }
+        return ids;
+    }
+
+    private static String cursorDe(String json) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"proximoCursor\":\"([^\"]+)\"").matcher(json);
+        return m.find() ? m.group(1) : null;
+    }
+
+    @Test
+    void historicoVazioDeveTrazerListaVaziaECursorNulo() throws Exception {
+        historico(usuarioA, "")
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.itens").isArray())
+                .andExpect(jsonPath("$.itens").isEmpty())
+                .andExpect(content().string(containsString("\"proximoCursor\":null")));
+    }
+
+    @Test
+    void historicoDeveTrazerOsCamposDoItem() throws Exception {
+        Long ocorrencia = ocorrencia("SAMU_CONVULSAO");
+        enviar(URL, usuarioA, "chave-padrao", corpoPadrao("SAMU", ocorrencia, "Detalhe sigiloso", 150.0))
+                .andExpect(status().isCreated());
+
+        historico(usuarioA, "")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itens[0].codigoSimulacao", matchesPattern("#SIM-\\d+")))
+                .andExpect(jsonPath("$.itens[0].modalidade").value("PADRAO"))
+                .andExpect(jsonPath("$.itens[0].orgao").value("SAMU"))
+                .andExpect(jsonPath("$.itens[0].ocorrencia.id").value(ocorrencia))
+                .andExpect(jsonPath("$.itens[0].ocorrencia.nome").value("Convulsão / Ataque epiléptico"))
+                .andExpect(jsonPath("$.itens[0].estado").value("CRIADO"))
+                .andExpect(jsonPath("$.itens[0].baixaPrecisao").value(true))
+                .andExpect(jsonPath("$.itens[0].dataCriacao", matchesPattern("\\d{4}-\\d{2}-\\d{2}T.*Z")))
+                .andExpect(jsonPath("$.itens[0].localizacao").doesNotExist())
+                .andExpect(jsonPath("$.itens[0].detalheAdicional").doesNotExist())
+                .andExpect(content().string(not(containsString("Detalhe sigiloso"))))
+                .andExpect(content().string(not(containsString("-15.7939"))));
+    }
+
+    @Test
+    void emergenciaImediataNoHistoricoDeveTerOcorrenciaNula() throws Exception {
+        registrarEmergencia(usuarioA, "chave-ei");
+
+        historico(usuarioA, "")
+                .andExpect(jsonPath("$.itens[0].modalidade").value("EMERGENCIA_IMEDIATA"))
+                .andExpect(jsonPath("$.itens[0].orgao").value("POLICIA_MILITAR"))
+                .andExpect(content().string(containsString("\"ocorrencia\":null")));
+    }
+
+    @Test
+    void paginacaoDevePercorrerTudoSemRepetirMesmoComNovoRegistroDuranteANavegacao() throws Exception {
+        List<Long> criados = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            criados.add(0, registrarEmergencia(usuarioA, "chave-" + i));
+        }
+
+        String pagina1 = historico(usuarioA, "?limite=2").andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Long novo = registrarEmergencia(usuarioA, "chave-durante-navegacao");
+        String pagina2 = historico(usuarioA, "?limite=2&cursor=" + cursorDe(pagina1))
+                .andReturn().getResponse().getContentAsString();
+        String pagina3 = historico(usuarioA, "?limite=2&cursor=" + cursorDe(pagina2))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(idsDe(pagina1)).hasSize(2);
+        assertThat(idsDe(pagina2)).hasSize(2);
+        assertThat(idsDe(pagina3)).hasSize(1);
+        assertThat(cursorDe(pagina3)).isNull();
+        List<Long> percorridos = new ArrayList<>(idsDe(pagina1));
+        percorridos.addAll(idsDe(pagina2));
+        percorridos.addAll(idsDe(pagina3));
+        assertThat(percorridos).containsExactlyElementsOf(criados).doesNotContain(novo);
+
+        assertThat(idsDe(historico(usuarioA, "?limite=1").andReturn().getResponse().getContentAsString()))
+                .containsExactly(novo);
+    }
+
+    @Test
+    void historicoNaoDeveMostrarChamadosDeOutroUsuarioNemAceitarUsuarioPelaQuery() throws Exception {
+        Long deA = registrarEmergencia(usuarioA, "chave-a");
+        registrarEmergencia(usuarioB, "chave-b");
+
+        assertThat(idsDe(historico(usuarioA, "").andReturn().getResponse().getContentAsString()))
+                .containsExactly(deA);
+        assertThat(idsDe(historico(usuarioA, "?usuarioId=" + usuarioB).andReturn().getResponse().getContentAsString()))
+                .containsExactly(deA);
+    }
+
+    @Test
+    void cursorDeOutroUsuarioNaoDeveExporOsChamadosDele() throws Exception {
+        registrarEmergencia(usuarioB, "chave-b1");
+        registrarEmergencia(usuarioB, "chave-b2");
+        String paginaDeB = historico(usuarioB, "?limite=1").andReturn().getResponse().getContentAsString();
+
+        historico(usuarioA, "?cursor=" + cursorDe(paginaDeB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.itens").isEmpty());
+    }
+
+    @Test
+    void limiteECursorInvalidosDevemRetornar400NoCampo() throws Exception {
+        for (String limite : List.of("0", "51", "-1")) {
+            ResultActions resultado = historico(usuarioA, "?limite=" + limite);
+            assertProblema(resultado, 400, "VALIDACAO_INVALIDA");
+            resultado.andExpect(jsonPath("$.errors[0].field").value("limite"));
+        }
+        historico(usuarioA, "?limite=abc")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("limite"));
+        ResultActions cursor = historico(usuarioA, "?cursor=lixo!");
+        assertProblema(cursor, 400, "VALIDACAO_INVALIDA");
+        cursor.andExpect(jsonPath("$.errors[0].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[0].code").value("VALOR_INVALIDO"));
+    }
+
+    @Test
+    void historicoSemAutenticacaoDeveRetornar401() throws Exception {
+        assertProblema(mockMvc.perform(get(URL)), 401, "NAO_AUTENTICADO");
     }
 }
