@@ -119,6 +119,9 @@ class ChamadoControllerTest {
     void removerDados() {
         for (String cpf : CPFS) {
             jdbc.update("""
+                    DELETE e FROM encaminhamento e JOIN chamado c ON c.id = e.chamado_id
+                    JOIN usuario u ON u.id = c.usuario_id WHERE u.cpf = ?""", cpf);
+            jdbc.update("""
                     DELETE t FROM chamado_transicao t JOIN chamado c ON c.id = t.chamado_id
                     JOIN usuario u ON u.id = c.usuario_id WHERE u.cpf = ?""", cpf);
             jdbc.update("DELETE c FROM chamado c JOIN usuario u ON u.id = c.usuario_id WHERE u.cpf = ?", cpf);
@@ -191,7 +194,10 @@ class ChamadoControllerTest {
 
         assertThat(linhas("chamado", usuarioA)).isEqualTo(1);
         assertThat(linhas("chamado_transicao", usuarioA)).isEqualTo(1);
-        assertThat(linhas("encaminhamento", usuarioA)).isZero();
+        // Etapa 8.5: o ouvinte de ChamadoRegistrado cria o encaminhamento simulado após o commit.
+        assertThat(linhas("encaminhamento", usuarioA)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT e.status FROM encaminhamento e JOIN chamado c ON c.id = e.chamado_id "
+                + "WHERE c.usuario_id = ?", String.class, usuarioA)).isEqualTo("AGENDADO");
     }
 
     @Test
