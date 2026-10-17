@@ -38,20 +38,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String DETALHE_REQUISICAO = "A requisição não pôde ser processada.";
 
     // Campo de entrada associado a cada código de validação do domínio; os módulos acrescentam os seus.
-    private static final Map<String, String> CAMPO_POR_CODIGO_DE_DOMINIO = Map.of(
-            "USUARIO_NOME_OBRIGATORIO", "nome",
-            "USUARIO_CPF_INVALIDO", "cpf",
-            "USUARIO_EMAIL_INVALIDO", "email",
-            "USUARIO_SENHA_OBRIGATORIA", "senha",
-            "CONTATO_NOME_OBRIGATORIO", "nome",
-            "CONTATO_TELEFONE_OBRIGATORIO", "telefone",
-            "CONTATO_TELEFONE_INVALIDO", "telefone");
+    private static final Map<String, String> CAMPO_POR_CODIGO_DE_DOMINIO = Map.ofEntries(
+            Map.entry("USUARIO_NOME_OBRIGATORIO", "nome"),
+            Map.entry("USUARIO_CPF_INVALIDO", "cpf"),
+            Map.entry("USUARIO_EMAIL_INVALIDO", "email"),
+            Map.entry("USUARIO_SENHA_OBRIGATORIA", "senha"),
+            Map.entry("CONTATO_NOME_OBRIGATORIO", "nome"),
+            Map.entry("CONTATO_TELEFONE_OBRIGATORIO", "telefone"),
+            Map.entry("CONTATO_TELEFONE_INVALIDO", "telefone"),
+            Map.entry("LOCALIZACAO_LATITUDE_INVALIDA", "localizacao.latitude"),
+            Map.entry("LOCALIZACAO_LONGITUDE_INVALIDA", "localizacao.longitude"),
+            Map.entry("LOCALIZACAO_PRECISAO_INVALIDA", "localizacao.precisao"),
+            Map.entry("LOCALIZACAO_TIMESTAMP_OBRIGATORIO", "localizacao.timestamp"),
+            Map.entry("CHAMADO_ORGAO_OBRIGATORIO", "orgao"),
+            Map.entry("CHAMADO_OCORRENCIA_OBRIGATORIA", "ocorrenciaId"),
+            Map.entry("CHAMADO_DETALHE_EXCEDE_LIMITE", "detalheAdicional"));
 
     // Demais DominioException são validação de entrada (400).
     private static final Set<String> REGRAS_DE_NEGOCIO = Set.of("LIMITE_CONTATOS_EXCEDIDO");
     private static final Set<String> NAO_ENCONTRADOS = Set.of("CONTATO_NAO_ENCONTRADO");
 
-    private static final String SENHA_INVALIDA = "SENHA_INVALIDA";
+    // Validações de entrada feitas pela Application: 400 VALIDACAO_INVALIDA, com o código no item do campo.
+    private static final Set<String> VALIDACOES_DE_APLICACAO = Set.of(
+            "SENHA_INVALIDA", "OCORRENCIA_INVALIDA", "CAMPO_OBRIGATORIO", "VALOR_INVALIDO");
+    private static final String IDEMPOTENCIA_DIVERGENTE = "IDEMPOTENCIA_DIVERGENTE";
     private static final String CADASTRO_JA_EXISTENTE = "CADASTRO_JA_EXISTENTE";
     private static final String NAO_AUTENTICADO = "NAO_AUTENTICADO";
 
@@ -75,13 +85,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         List<ErroDeCampo> erros = ex.getCampos().stream().sorted()
                 .map(campo -> new ErroDeCampo(campo, ex.getCodigo(), ex.getMensagem()))
                 .toList();
-        if (SENHA_INVALIDA.equals(ex.getCodigo())) {
+        if (VALIDACOES_DE_APLICACAO.contains(ex.getCodigo())) {
             return resposta(problema(HttpStatus.BAD_REQUEST, VALIDACAO_INVALIDA, DETALHE_VALIDACAO, erros));
         }
         if (NAO_AUTENTICADO.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.UNAUTHORIZED, ex.getCodigo(), ex.getMensagem(), List.of()));
         }
-        if (CADASTRO_JA_EXISTENTE.equals(ex.getCodigo())) {
+        if (CADASTRO_JA_EXISTENTE.equals(ex.getCodigo()) || IDEMPOTENCIA_DIVERGENTE.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.CONFLICT, ex.getCodigo(), ex.getMensagem(), erros));
         }
         return resposta(problema(HttpStatus.UNPROCESSABLE_CONTENT, ex.getCodigo(), ex.getMensagem(), erros));

@@ -67,7 +67,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void validacaoDeDominioSemCampoMapeadoDeveSer400SemCampo() {
         ResponseEntity<ProblemDetail> resposta = handler.tratarDominio(
-                new DominioException("LOCALIZACAO_LATITUDE_INVALIDA", "A latitude deve estar entre -90 e 90."));
+                new DominioException("ENCAMINHAMENTO_AGENDAMENTO_INVALIDO", "Agendamento inválido."));
 
         assertProblema(resposta, HttpStatus.BAD_REQUEST, "VALIDACAO_INVALIDA");
         assertThat(erros(resposta.getBody())).extracting(ErroDeCampo::field).containsExactly((String) null);
@@ -139,6 +139,40 @@ class GlobalExceptionHandlerTest {
 
         assertProblema(resposta, HttpStatus.UNAUTHORIZED, "NAO_AUTENTICADO");
         assertThat(erros(resposta.getBody())).isEmpty();
+    }
+
+    @Test
+    void validacaoDeLocalizacaoDeveApontarOCampoAninhado() {
+        ResponseEntity<ProblemDetail> resposta = handler.tratarDominio(
+                new DominioException("LOCALIZACAO_LATITUDE_INVALIDA", "A latitude deve estar entre -90 e 90."));
+
+        assertProblema(resposta, HttpStatus.BAD_REQUEST, "VALIDACAO_INVALIDA");
+        assertThat(erros(resposta.getBody())).extracting(ErroDeCampo::field).containsExactly("localizacao.latitude");
+    }
+
+    @Test
+    void detalheAcimaDoLimiteDeveApontarOCampoDetalhe() {
+        ResponseEntity<ProblemDetail> resposta = handler.tratarDominio(new DominioException(
+                "CHAMADO_DETALHE_EXCEDE_LIMITE", "O detalhe adicional deve ter no máximo 500 caracteres."));
+
+        assertThat(erros(resposta.getBody())).extracting(ErroDeCampo::field).containsExactly("detalheAdicional");
+    }
+
+    @Test
+    void ocorrenciaInvalidaDeveSer400NoCampoOcorrencia() {
+        ResponseEntity<ProblemDetail> resposta = handler.tratarAplicacao(new AplicacaoException(
+                "OCORRENCIA_INVALIDA", "A ocorrência informada não é válida para o órgão.", Set.of("ocorrenciaId")));
+
+        assertProblema(resposta, HttpStatus.BAD_REQUEST, "VALIDACAO_INVALIDA");
+        assertThat(erros(resposta.getBody())).extracting(ErroDeCampo::field, ErroDeCampo::code)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("ocorrenciaId", "OCORRENCIA_INVALIDA"));
+    }
+
+    @Test
+    void idempotenciaDivergenteDeveSer409() {
+        assertProblema(handler.tratarAplicacao(new AplicacaoException("IDEMPOTENCIA_DIVERGENTE",
+                "A chave de idempotência já foi usada com outros dados.", Set.of())),
+                HttpStatus.CONFLICT, "IDEMPOTENCIA_DIVERGENTE");
     }
 
     @Test
