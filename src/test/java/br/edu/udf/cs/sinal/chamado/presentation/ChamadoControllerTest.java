@@ -1,6 +1,7 @@
 package br.edu.udf.cs.sinal.chamado.presentation;
 
 import br.edu.udf.cs.sinal.TestcontainersConfiguration;
+import br.edu.udf.cs.sinal.identidade.infrastructure.security.TokenJwtService;
 import br.edu.udf.cs.sinal.chamado.application.ChamadoRegistrado;
 import br.edu.udf.cs.sinal.chamado.domain.repository.ChamadoRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -55,6 +56,13 @@ class ChamadoControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private TokenJwtService tokenJwtService;
+
+    private String bearer(Long usuarioId) {
+        return "Bearer " + tokenJwtService.emitir(usuarioId).accessToken();
+    }
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -154,7 +162,7 @@ class ChamadoControllerTest {
 
     private ResultActions enviar(String url, Long usuarioId, String chave, String corpo) throws Exception {
         var requisicao = post(url).contentType(MediaType.APPLICATION_JSON).content(corpo)
-                .header("X-Usuario-Id", String.valueOf(usuarioId));
+                .header("Authorization", bearer(usuarioId));
         if (chave != null) {
             requisicao.header("Idempotency-Key", chave);
         }
@@ -388,7 +396,7 @@ class ChamadoControllerTest {
     }
 
     private ResultActions historico(Long usuarioId, String parametros) throws Exception {
-        return mockMvc.perform(get(URL + parametros).header("X-Usuario-Id", String.valueOf(usuarioId)));
+        return mockMvc.perform(get(URL + parametros).header("Authorization", bearer(usuarioId)));
     }
 
     private static List<Long> idsDe(String json) {

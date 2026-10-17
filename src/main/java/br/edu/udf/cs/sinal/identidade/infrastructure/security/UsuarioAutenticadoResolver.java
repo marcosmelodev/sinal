@@ -4,6 +4,9 @@ import br.edu.udf.cs.sinal.compartilhado.application.AplicacaoException;
 import br.edu.udf.cs.sinal.identidade.domain.model.Usuario;
 import br.edu.udf.cs.sinal.identidade.domain.repository.UsuarioRepository;
 import org.springframework.core.MethodParameter;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -11,19 +14,17 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 
 import java.util.Set;
 
-// PROVISÓRIO até a autenticação por JWT: confia no cabeçalho X-Usuario-Id, o que permite a qualquer cliente
-// se passar por outro usuário. Por isso fica desligado por padrão e só é habilitado no perfil dev.
-public class UsuarioAutenticadoProvisorioResolver implements HandlerMethodArgumentResolver {
+// O usuarioId vem sempre do token validado (sub), nunca do cliente (Etapa 4 §20). O status é conferido no banco
+// a cada requisição: um usuário inativado é barrado mesmo com token ainda válido.
+public class UsuarioAutenticadoResolver implements HandlerMethodArgumentResolver {
 
-    public static final String CABECALHO = "X-Usuario-Id";
     public static final String NAO_AUTENTICADO = "NAO_AUTENTICADO";
+    public static final String CONTA_INATIVA = "CONTA_INATIVA";
 
     private final UsuarioRepository usuarioRepository;
-    private final boolean habilitado;
 
-    public UsuarioAutenticadoProvisorioResolver(UsuarioRepository usuarioRepository, boolean habilitado) {
+    public UsuarioAutenticadoResolver(UsuarioRepository usuarioRepository) {
         this.usuarioRepository = usuarioRepository;
-        this.habilitado = habilitado;
     }
 
     @Override
@@ -32,29 +33,20 @@ public class UsuarioAutenticadoProvisorioResolver implements HandlerMethodArgume
                 && Long.class.equals(parameter.getParameterType());
     }
 
-    // Ausente, inválido, inexistente ou inativo: sempre 401, sem distinguir o motivo ao cliente.
     @Override
     public Long resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
                                 NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        if (!habilitado) {
+        Authentication autenticacao = SecurityContextHolder.getContext().getAuthentication();
+        if (!(autenticacao instanceof JwtAuthenticationToken jwt) || jwt.getToken().getSubject() == null
+                || !jwt.getToken().getSubject().matches("[1-9]\\d{0,18}")) {
             throw naoAutenticado();
         }
-        Long usuarioId = converter(webRequest.getHeader(CABECALHO));
-        return usuarioRepository.buscarPorId(usuarioId)
-                .filter(Usuario::getAtivo)
-                .map(Usuario::getId)
-                .orElseThrow(UsuarioAutenticadoProvisorioResolver::naoAutenticado);
-    }
-
-    private static Long converter(String valor) {
-        if (valor == null || !valor.matches("[1-9]\\d{0,18}")) {
-            throw naoAutenticado();
+        Usuario usuario = usuarioRepository.buscarPorId(Long.valueOf(jwt.getToken().getSubject()))
+                .orElseThrow(UsuarioAutenticadoResolver::naoAutenticado);
+        if (!usuario.getAtivo()) {
+            throw new AplicacaoException(CONTA_INATIVA, "Conta inativa.", Set.of());
         }
-        try {
-            return Long.valueOf(valor);
-        } catch (NumberFormatException e) {
-            throw naoAutenticado();
-        }
+        return usuario.getId();
     }
 
     private static AplicacaoException naoAutenticado() {

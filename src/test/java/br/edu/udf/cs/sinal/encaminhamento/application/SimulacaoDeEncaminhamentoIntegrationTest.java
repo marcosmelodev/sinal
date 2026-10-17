@@ -2,6 +2,7 @@ package br.edu.udf.cs.sinal.encaminhamento.application;
 
 import br.edu.udf.cs.sinal.RelogioAjustavel;
 import br.edu.udf.cs.sinal.TestcontainersConfiguration;
+import br.edu.udf.cs.sinal.identidade.infrastructure.security.TokenJwtService;
 import br.edu.udf.cs.sinal.chamado.domain.model.Chamado;
 import br.edu.udf.cs.sinal.chamado.domain.repository.ChamadoRepository;
 import br.edu.udf.cs.sinal.compartilhado.domain.Localizacao;
@@ -67,6 +68,13 @@ class SimulacaoDeEncaminhamentoIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
+    private TokenJwtService tokenJwtService;
+
+    private String bearer(Long usuarioId) {
+        return "Bearer " + tokenJwtService.emitir(usuarioId).accessToken();
+    }
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -107,7 +115,7 @@ class SimulacaoDeEncaminhamentoIntegrationTest {
 
     private Long registrarEmergencia(String chave, String localizacao) throws Exception {
         String resposta = mockMvc.perform(post("/api/v1/chamados/emergencia-imediata")
-                        .contentType(MediaType.APPLICATION_JSON).header("X-Usuario-Id", String.valueOf(usuarioId))
+                        .contentType(MediaType.APPLICATION_JSON).header("Authorization", bearer(usuarioId))
                         .header("Idempotency-Key", chave).content("{\"localizacao\": " + localizacao + "}"))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return Long.valueOf(resposta.replaceAll(".*\"id\":(\\d+).*", "$1"));
@@ -191,7 +199,7 @@ class SimulacaoDeEncaminhamentoIntegrationTest {
         job.executar();
         assertThat(transicoes(chamadoId)).isEqualTo(3);
 
-        mockMvc.perform(get("/api/v1/chamados").header("X-Usuario-Id", String.valueOf(usuarioId)))
+        mockMvc.perform(get("/api/v1/chamados").header("Authorization", bearer(usuarioId)))
                 .andExpect(jsonPath("$.itens[0].estado").value("ENCERRADO"));
     }
 

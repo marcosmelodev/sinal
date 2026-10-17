@@ -1,6 +1,7 @@
 package br.edu.udf.cs.sinal.identidade.presentation;
 
 import br.edu.udf.cs.sinal.TestcontainersConfiguration;
+import br.edu.udf.cs.sinal.identidade.infrastructure.security.TokenJwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +42,14 @@ class UsuarioControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private TokenJwtService tokenJwtService;
+
+    // Rotas que exigem apenas um token válido (sem @UsuarioAutenticado) aceitam qualquer sub emitido pela aplicação.
+    private String bearer() {
+        return "Bearer " + tokenJwtService.emitir(1L).accessToken();
+    }
 
     private static String corpo(String nome, String cpf, String email, String senha) {
         return """
@@ -194,20 +203,28 @@ class UsuarioControllerTest {
     }
 
     @Test
-    void rotaInexistenteDeveRetornar404() throws Exception {
-        assertProblema(mockMvc.perform(get("/api/v1/inexistente")), 404, "RECURSO_NAO_ENCONTRADO");
+    void rotaInexistenteComTokenDeveRetornar404() throws Exception {
+        assertProblema(mockMvc.perform(get("/api/v1/inexistente").header("Authorization", bearer())),
+                404, "RECURSO_NAO_ENCONTRADO");
+    }
+
+    // Default-deny (Etapa 4 §20): sem token, nem a existência da rota é revelada.
+    @Test
+    void rotaInexistenteSemTokenDeveRetornar401() throws Exception {
+        assertProblema(mockMvc.perform(get("/api/v1/inexistente")), 401, "NAO_AUTENTICADO");
     }
 
     @Test
     void catalogoDeOcorrenciasLegadoDeveContinuarFuncionando() throws Exception {
-        mockMvc.perform(get("/api/v1/ocorrencias").param("orgao", "SAMU"))
+        mockMvc.perform(get("/api/v1/ocorrencias").param("orgao", "SAMU").header("Authorization", bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(11)));
     }
 
     @Test
     void orgaoInvalidoNoCatalogoDeveRetornar400SemRepetirOValor() throws Exception {
-        ResultActions resultado = mockMvc.perform(get("/api/v1/ocorrencias").param("orgao", "XYZ-INVALIDO"));
+        ResultActions resultado = mockMvc.perform(get("/api/v1/ocorrencias").param("orgao", "XYZ-INVALIDO")
+                .header("Authorization", bearer()));
 
         assertProblema(resultado, 400, "VALIDACAO_INVALIDA");
         resultado.andExpect(jsonPath("$.errors[0].field").value("orgao"))

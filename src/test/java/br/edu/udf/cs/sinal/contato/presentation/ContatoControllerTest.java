@@ -1,6 +1,7 @@
 package br.edu.udf.cs.sinal.contato.presentation;
 
 import br.edu.udf.cs.sinal.TestcontainersConfiguration;
+import br.edu.udf.cs.sinal.identidade.infrastructure.security.TokenJwtService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,11 +43,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ContatoControllerTest {
 
     private static final String URL = "/api/v1/contatos-confianca";
-    private static final String CABECALHO = "X-Usuario-Id";
     private static final List<String> CPFS = List.of("10000000604", "10000000280", "10000001090");
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private TokenJwtService tokenJwtService;
+
+    private String bearer(Long usuarioId) {
+        return "Bearer " + tokenJwtService.emitir(usuarioId).accessToken();
+    }
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -84,8 +91,8 @@ class ContatoControllerTest {
         return valor == null ? "null" : "\"" + valor + "\"";
     }
 
-    private static MockHttpServletRequestBuilder como(MockHttpServletRequestBuilder requisicao, Long usuarioId) {
-        return requisicao.header(CABECALHO, String.valueOf(usuarioId)).contentType(MediaType.APPLICATION_JSON);
+    private MockHttpServletRequestBuilder como(MockHttpServletRequestBuilder requisicao, Long usuarioId) {
+        return requisicao.header("Authorization", bearer(usuarioId)).contentType(MediaType.APPLICATION_JSON);
     }
 
     private ResultActions adicionar(Long usuarioId, String nome, String telefone) throws Exception {
@@ -210,16 +217,23 @@ class ContatoControllerTest {
     }
 
     @Test
-    void semCabecalhoDeUsuarioDeveRetornar401() throws Exception {
+    void semTokenDeveRetornar401() throws Exception {
         assertProblema(mockMvc.perform(get(URL)), 401, "NAO_AUTENTICADO");
     }
 
+    // O cabeçalho provisório da Etapa 8.3 não autentica mais ninguém.
     @Test
-    void cabecalhoInvalidoUsuarioInexistenteOuInativoDevemRetornar401() throws Exception {
-        assertProblema(mockMvc.perform(get(URL).header(CABECALHO, "abc")), 401, "NAO_AUTENTICADO");
-        assertProblema(mockMvc.perform(get(URL).header(CABECALHO, "999999")), 401, "NAO_AUTENTICADO");
-        assertProblema(mockMvc.perform(como(post(URL), usuarioInativo).content(corpo("Ana", "61999998888"))),
+    void cabecalhoProvisorioDeveSerIgnorado() throws Exception {
+        assertProblema(mockMvc.perform(get(URL).header("X-Usuario-Id", String.valueOf(usuarioA))),
                 401, "NAO_AUTENTICADO");
+    }
+
+    @Test
+    void tokenInvalidoOuDeUsuarioInexistenteDeveRetornar401EInativo403() throws Exception {
+        assertProblema(mockMvc.perform(get(URL).header("Authorization", "Bearer abc")), 401, "NAO_AUTENTICADO");
+        assertProblema(mockMvc.perform(get(URL).header("Authorization", bearer(999_999L))), 401, "NAO_AUTENTICADO");
+        assertProblema(mockMvc.perform(como(post(URL), usuarioInativo).content(corpo("Ana", "61999998888"))),
+                403, "CONTA_INATIVA");
     }
 
     @Test

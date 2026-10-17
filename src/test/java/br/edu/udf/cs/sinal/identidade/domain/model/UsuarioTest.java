@@ -358,7 +358,7 @@ class UsuarioTest {
                     .noneMatch(nome -> nome.startsWith("set"))
                     .doesNotContain("ativar", "desativar");
             assertThat(metodosPublicos()).filteredOn(nome -> !nome.startsWith("get"))
-                    .containsExactlyInAnyOrder("cadastrar", "reconstituir");
+                    .containsExactlyInAnyOrder("cadastrar", "reconstituir", "cpfCanonico", "emailCanonico");
         }
 
         @Test
@@ -378,6 +378,36 @@ class UsuarioTest {
             assertThat(Usuario.class.getDeclaredFields())
                     .filteredOn(f -> !Modifier.isStatic(f.getModifiers()))
                     .allMatch(f -> Modifier.isFinal(f.getModifiers()));
+        }
+    }
+
+    @Nested
+    class FormasCanonicas {
+
+        @ParameterizedTest
+        @CsvSource({"52998224725, 52998224725", "529.982.247-25, 52998224725", "' 529.982.247-25 ', 52998224725"})
+        void cpfValidoDeveVirarOnzeDigitos(String entrada, String esperado) {
+            assertThat(Usuario.cpfCanonico(entrada)).contains(esperado);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {"52998224724", "11111111111", "529-982-247.25", "maria@exemplo.com"})
+        void cpfInvalidoDeveSerVazio(String entrada) {
+            assertThat(Usuario.cpfCanonico(entrada)).isEmpty();
+        }
+
+        @ParameterizedTest
+        @CsvSource({"maria@exemplo.com.br, maria@exemplo.com.br", "'  Maria@Exemplo.COM.br ', maria@exemplo.com.br"})
+        void emailValidoDeveSerNormalizado(String entrada, String esperado) {
+            assertThat(Usuario.emailCanonico(entrada)).contains(esperado);
+        }
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {"a@b", "sem-arroba", "52998224725"})
+        void emailInvalidoDeveSerVazio(String entrada) {
+            assertThat(Usuario.emailCanonico(entrada)).isEmpty();
         }
     }
 }

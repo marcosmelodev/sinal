@@ -63,7 +63,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             "SENHA_INVALIDA", "OCORRENCIA_INVALIDA", "CAMPO_OBRIGATORIO", "VALOR_INVALIDO");
     private static final String IDEMPOTENCIA_DIVERGENTE = "IDEMPOTENCIA_DIVERGENTE";
     private static final String CADASTRO_JA_EXISTENTE = "CADASTRO_JA_EXISTENTE";
-    private static final String NAO_AUTENTICADO = "NAO_AUTENTICADO";
+    private static final Set<String> NAO_AUTENTICADOS = Set.of("NAO_AUTENTICADO", "CREDENCIAIS_INVALIDAS");
+    private static final String CONTA_INATIVA = "CONTA_INATIVA";
 
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -88,8 +89,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (VALIDACOES_DE_APLICACAO.contains(ex.getCodigo())) {
             return resposta(problema(HttpStatus.BAD_REQUEST, VALIDACAO_INVALIDA, DETALHE_VALIDACAO, erros));
         }
-        if (NAO_AUTENTICADO.equals(ex.getCodigo())) {
+        if (NAO_AUTENTICADOS.contains(ex.getCodigo())) {
             return resposta(problema(HttpStatus.UNAUTHORIZED, ex.getCodigo(), ex.getMensagem(), List.of()));
+        }
+        if (CONTA_INATIVA.equals(ex.getCodigo())) {
+            return resposta(problema(HttpStatus.FORBIDDEN, ex.getCodigo(), ex.getMensagem(), List.of()));
         }
         if (CADASTRO_JA_EXISTENTE.equals(ex.getCodigo()) || IDEMPOTENCIA_DIVERGENTE.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.CONFLICT, ex.getCodigo(), ex.getMensagem(), erros));

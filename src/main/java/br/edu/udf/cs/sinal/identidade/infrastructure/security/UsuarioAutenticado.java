@@ -6,8 +6,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-// Injeta o id do usuário autenticado em parâmetros Long de controllers. A origem do id fica isolada no
-// resolver: hoje o cabeçalho provisório; na etapa do JWT, o token, sem alterar os controllers.
+// Injeta o id do usuário autenticado (sub do JWT validado) em parâmetros Long de controllers.
+// Resolvido por UsuarioAutenticadoResolver.
 @Target(ElementType.PARAMETER)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented

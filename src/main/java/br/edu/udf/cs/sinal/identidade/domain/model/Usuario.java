@@ -4,6 +4,7 @@ import br.edu.udf.cs.sinal.compartilhado.domain.DominioException;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 public class Usuario {
@@ -56,6 +57,24 @@ public class Usuario {
             throw new IllegalArgumentException("O indicador de ativo é obrigatório na reconstituição do usuário.");
         }
         return new Usuario(id, nome, cpf, email, senhaHash, dataCadastro, ativo);
+    }
+
+    // Formas canônicas para buscas (login por CPF ou e-mail, Etapa 4 §20), com as mesmas regras do cadastro.
+    // Vazio quando o valor não é um CPF ou e-mail válido.
+    public static Optional<String> cpfCanonico(String cpf) {
+        try {
+            return Optional.of(normalizarCpf(cpf));
+        } catch (DominioException e) {
+            return Optional.empty();
+        }
+    }
+
+    public static Optional<String> emailCanonico(String email) {
+        try {
+            return Optional.of(normalizarEmail(email));
+        } catch (DominioException e) {
+            return Optional.empty();
+        }
     }
 
     private static String normalizarNome(String nome) {

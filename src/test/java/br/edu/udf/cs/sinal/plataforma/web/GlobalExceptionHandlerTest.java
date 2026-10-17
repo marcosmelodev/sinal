@@ -176,6 +176,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void credenciaisInvalidasDeveSer401EContaInativa403() {
+        assertProblema(handler.tratarAplicacao(new AplicacaoException("CREDENCIAIS_INVALIDAS", "Dados incorretos.",
+                Set.of())), HttpStatus.UNAUTHORIZED, "CREDENCIAIS_INVALIDAS");
+        assertProblema(handler.tratarAplicacao(new AplicacaoException("CONTA_INATIVA", "Conta inativa.", Set.of())),
+                HttpStatus.FORBIDDEN, "CONTA_INATIVA");
+    }
+
+    @Test
     void erroInesperadoDeveSer500SemExporAMensagemInterna() {
         ResponseEntity<ProblemDetail> resposta = handler.tratarInesperado(
                 new IllegalStateException("Duplicate entry '52998224725' for key 'usuario.uk_usuario_cpf'"));
