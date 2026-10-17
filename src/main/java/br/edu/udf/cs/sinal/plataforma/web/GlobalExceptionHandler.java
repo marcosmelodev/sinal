@@ -42,7 +42,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             "USUARIO_NOME_OBRIGATORIO", "nome",
             "USUARIO_CPF_INVALIDO", "cpf",
             "USUARIO_EMAIL_INVALIDO", "email",
-            "USUARIO_SENHA_OBRIGATORIA", "senha");
+            "USUARIO_SENHA_OBRIGATORIA", "senha",
+            "CONTATO_NOME_OBRIGATORIO", "nome",
+            "CONTATO_TELEFONE_OBRIGATORIO", "telefone",
+            "CONTATO_TELEFONE_INVALIDO", "telefone");
 
     // Demais DominioException são validação de entrada (400).
     private static final Set<String> REGRAS_DE_NEGOCIO = Set.of("LIMITE_CONTATOS_EXCEDIDO");
@@ -50,6 +53,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String SENHA_INVALIDA = "SENHA_INVALIDA";
     private static final String CADASTRO_JA_EXISTENTE = "CADASTRO_JA_EXISTENTE";
+    private static final String NAO_AUTENTICADO = "NAO_AUTENTICADO";
 
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -73,6 +77,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .toList();
         if (SENHA_INVALIDA.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.BAD_REQUEST, VALIDACAO_INVALIDA, DETALHE_VALIDACAO, erros));
+        }
+        if (NAO_AUTENTICADO.equals(ex.getCodigo())) {
+            return resposta(problema(HttpStatus.UNAUTHORIZED, ex.getCodigo(), ex.getMensagem(), List.of()));
         }
         if (CADASTRO_JA_EXISTENTE.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.CONFLICT, ex.getCodigo(), ex.getMensagem(), erros));

@@ -116,6 +116,32 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void telefoneInvalidoDeContatoDeveSer400NoCampoTelefone() {
+        ResponseEntity<ProblemDetail> resposta = handler.tratarDominio(new DominioException(
+                "CONTATO_TELEFONE_INVALIDO", "Informe um telefone brasileiro válido com DDD."));
+
+        assertProblema(resposta, HttpStatus.BAD_REQUEST, "VALIDACAO_INVALIDA");
+        assertThat(erros(resposta.getBody())).extracting(ErroDeCampo::field).containsExactly("telefone");
+    }
+
+    @Test
+    void nomeObrigatorioDeContatoDeveSer400NoCampoNome() {
+        ResponseEntity<ProblemDetail> resposta = handler.tratarDominio(
+                new DominioException("CONTATO_NOME_OBRIGATORIO", "O nome do contato é obrigatório."));
+
+        assertThat(erros(resposta.getBody())).extracting(ErroDeCampo::field).containsExactly("nome");
+    }
+
+    @Test
+    void naoAutenticadoDeveSer401() {
+        ResponseEntity<ProblemDetail> resposta = handler.tratarAplicacao(
+                new AplicacaoException("NAO_AUTENTICADO", "Autenticação necessária.", Set.of()));
+
+        assertProblema(resposta, HttpStatus.UNAUTHORIZED, "NAO_AUTENTICADO");
+        assertThat(erros(resposta.getBody())).isEmpty();
+    }
+
+    @Test
     void erroInesperadoDeveSer500SemExporAMensagemInterna() {
         ResponseEntity<ProblemDetail> resposta = handler.tratarInesperado(
                 new IllegalStateException("Duplicate entry '52998224725' for key 'usuario.uk_usuario_cpf'"));
