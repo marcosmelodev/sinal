@@ -27,6 +27,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -181,5 +182,36 @@ class SegurancaApiTest {
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
+    }
+
+    // ---- CORS (front-end local em http://localhost:5173) ----
+
+    @Test
+    void preflightDoFrontEndLocalDeveSerAceitoSemToken() throws Exception {
+        mockMvc.perform(options("/api/v1/contatos-confianca")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+                .andExpect(header().string("Access-Control-Allow-Methods", containsString("POST")));
+    }
+
+    @Test
+    void preflightDeOrigemNaoPermitidaDeveSerRecusado() throws Exception {
+        mockMvc.perform(options("/api/v1/contatos-confianca")
+                        .header("Origin", "http://site-malicioso.example")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
+
+    @Test
+    void requisicaoDoFrontEndComTokenDeveTerCabecalhoCors() throws Exception {
+        mockMvc.perform(get("/api/v1/contatos-confianca").header("Origin", "http://localhost:5173")
+                        .header("Authorization", "Bearer " + token(ativo)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
     }
 }
