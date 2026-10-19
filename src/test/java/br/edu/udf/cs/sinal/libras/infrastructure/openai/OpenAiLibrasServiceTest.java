@@ -70,7 +70,7 @@ class OpenAiLibrasServiceTest {
                 .andExpect(jsonPath("$.messages.length()").value(2))
                 .andExpect(jsonPath("$.messages[0].role").value("system"))
                 .andExpect(jsonPath("$.messages[0].content",
-                        containsString("Você é um atendente virtual humanizado de plantão")))
+                        containsString("Você é um atendente humanizado de plantão")))
                 .andExpect(jsonPath("$.messages[1].role").value("user"))
                 .andExpect(jsonPath("$.messages[1].content").value("Meu pai desmaiou, o que eu faço?"))
                 .andExpect(jsonPath("$.temperature").value(0.4))
@@ -95,14 +95,20 @@ class OpenAiLibrasServiceTest {
     }
 
     @Test
-    void instrucaoDoSistemaDeveConterOTextoPedidoEOsLimitesDeSeguranca() {
+    void instrucaoDoSistemaDeveDefinirAPersonaDaCentralSemAvisosRoboticos() {
         assertThat(OpenAiLibrasService.INSTRUCAO_DO_SISTEMA)
-                .contains("Você é um atendente virtual humanizado de plantão em uma central de emergência voltada "
-                        + "para a comunidade surda (projeto SINAL). Suas respostas devem ser curtas, diretas, "
-                        + "acolhedoras, em português claro, focadas em orientar primeiros socorros ou acalmar o "
-                        + "usuário em situações de crise.")
-                .contains("Nunca diga que uma ajuda foi enviada")
-                .contains("SAMU 192");
+                .contains("Você é um atendente humanizado de plantão da central de emergência do projeto SINAL")
+                .contains("\"Onde você está?\"")
+                .contains("SAMU 192, Bombeiros 193 ou Polícia 190")
+                .contains("Não use avisos robóticos");
+    }
+
+    @Test
+    void instrucaoDoSistemaDeveManterOsLimitesDeSeguranca() {
+        assertThat(OpenAiLibrasService.INSTRUCAO_DO_SISTEMA)
+                .contains("Nunca afirme que uma equipe, viatura ou ambulância foi enviada")
+                .contains("responda com honestidade")
+                .contains("Não faça diagnósticos");
     }
 
     @Test
