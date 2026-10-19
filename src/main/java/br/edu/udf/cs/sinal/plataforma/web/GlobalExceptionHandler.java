@@ -65,6 +65,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String CADASTRO_JA_EXISTENTE = "CADASTRO_JA_EXISTENTE";
     private static final Set<String> NAO_AUTENTICADOS = Set.of("NAO_AUTENTICADO", "CREDENCIAIS_INVALIDAS");
     private static final String CONTA_INATIVA = "CONTA_INATIVA";
+    // Dependência externa fora do ar (ex.: OpenAI no chat em LIBRAS): 503, sem detalhes internos.
+    private static final Set<String> INDISPONIVEIS = Set.of("CHAT_INDISPONIVEL");
 
     private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
@@ -94,6 +96,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         if (CONTA_INATIVA.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.FORBIDDEN, ex.getCodigo(), ex.getMensagem(), List.of()));
+        }
+        if (INDISPONIVEIS.contains(ex.getCodigo())) {
+            return resposta(problema(HttpStatus.SERVICE_UNAVAILABLE, ex.getCodigo(), ex.getMensagem(), List.of()));
         }
         if (CADASTRO_JA_EXISTENTE.equals(ex.getCodigo()) || IDEMPOTENCIA_DIVERGENTE.equals(ex.getCodigo())) {
             return resposta(problema(HttpStatus.CONFLICT, ex.getCodigo(), ex.getMensagem(), erros));
