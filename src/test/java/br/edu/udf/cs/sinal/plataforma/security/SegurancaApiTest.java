@@ -5,6 +5,8 @@ import br.edu.udf.cs.sinal.TestcontainersConfiguration;
 import br.edu.udf.cs.sinal.identidade.infrastructure.security.TokenJwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -184,7 +186,7 @@ class SegurancaApiTest {
                 .andExpect(header().string("Cache-Control", containsString("no-store")));
     }
 
-    // ---- CORS (front-end local em http://localhost:5173) ----
+    // ---- CORS (front-end local em http://localhost:5173 e app Capacitor) ----
 
     @Test
     void preflightDoFrontEndLocalDeveSerAceitoSemToken() throws Exception {
@@ -203,6 +205,35 @@ class SegurancaApiTest {
         mockMvc.perform(options("/api/v1/contatos-confianca")
                         .header("Origin", "http://site-malicioso.example")
                         .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
+
+    // WebView do app Android/iOS (Capacitor) no tablet, acessando a API pelo IP da rede local. O endereço do
+    // servidor é simulado porque o padrão do MockMvc (http://localhost) tornaria "http://localhost" mesma origem.
+    @ParameterizedTest
+    @ValueSource(strings = {"http://localhost", "https://localhost", "capacitor://localhost"})
+    void preflightDoAppCapacitorDeveSerAceitoSemToken(String origem) throws Exception {
+        mockMvc.perform(options("/api/v1/libras/chat")
+                        .with(requisicao -> {
+                            requisicao.setServerName("192.168.0.20");
+                            requisicao.setServerPort(8080);
+                            return requisicao;
+                        })
+                        .header("Origin", origem)
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", origem))
+                .andExpect(header().string("Access-Control-Allow-Methods", containsString("POST")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"http://localhost:3000", "http://192.168.0.10", "https://localhost.example"})
+    void origensParecidasComAsDoAppDevemSerRecusadas(String origem) throws Exception {
+        mockMvc.perform(options("/api/v1/libras/chat")
+                        .header("Origin", origem)
+                        .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }

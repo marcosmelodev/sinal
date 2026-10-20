@@ -50,7 +50,10 @@ public class SegurancaConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuracao = new CorsConfiguration();
-        configuracao.setAllowedOrigins(List.of("http://localhost:5173"));
+        // Vite local e WebViews do Capacitor: Android (http://localhost com androidScheme "http", ou
+        // https://localhost, o padrão do Capacitor 6+) e iOS (capacitor://localhost).
+        configuracao.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost", "https://localhost",
+                "capacitor://localhost"));
         configuracao.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuracao.setAllowedHeaders(List.of("*"));
         configuracao.setAllowCredentials(true);
