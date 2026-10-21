@@ -16,8 +16,8 @@ public class OpenAiConfig {
     OpenAiLibrasService openAiLibrasService(@Value("${openai.api.url}") String url,
                                             @Value("${openai.api.model:gpt-4o-mini}") String modelo,
                                             @Value("${openai.api.key:}") String chave,
-                                            @Value("${openai.api.timeout-conexao:PT5S}") Duration timeoutConexao,
-                                            @Value("${openai.api.timeout-resposta:PT20S}") Duration timeoutResposta) {
+                                            @Value("${openai.api.timeout-conexao:PT10S}") Duration timeoutConexao,
+                                            @Value("${openai.api.timeout-resposta:PT30S}") Duration timeoutResposta) {
         SimpleClientHttpRequestFactory fabrica = new SimpleClientHttpRequestFactory();
         fabrica.setConnectTimeout(timeoutConexao);
         fabrica.setReadTimeout(timeoutResposta);
