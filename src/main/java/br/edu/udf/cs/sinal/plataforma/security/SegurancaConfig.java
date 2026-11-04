@@ -52,7 +52,7 @@ public class SegurancaConfig {
         CorsConfiguration configuracao = new CorsConfiguration();
         // Vite local e WebViews do Capacitor: Android (http://localhost com androidScheme "http", ou
         // https://localhost, o padrão do Capacitor 6+) e iOS (capacitor://localhost).
-        configuracao.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost", "https://localhost",
+        configuracao.setAllowedOrigins(List.of("https://sinal-frontend.onrender.com", "http://localhost:5173", "http://localhost", "https://localhost",
                 "capacitor://localhost"));
         configuracao.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuracao.setAllowedHeaders(List.of("*"));
