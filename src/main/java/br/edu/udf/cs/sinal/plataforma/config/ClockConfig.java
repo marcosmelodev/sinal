@@ -9,7 +9,7 @@ import java.time.Duration;
 @Configuration(proxyBeanMethods = false)
 public class ClockConfig {
 
-    // UTC com resolução de microssegundos: compatível com DATETIME(6), sem arredondamento pelo MySQL.
+    // UTC com resolução de microssegundos: compatível com TIMESTAMP(6), sem arredondamento pelo banco.
     @Bean
     public Clock clock() {
         return Clock.tick(Clock.systemUTC(), Duration.ofNanos(1_000));

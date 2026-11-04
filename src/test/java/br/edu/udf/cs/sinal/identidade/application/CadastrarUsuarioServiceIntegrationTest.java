@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 
-// Contexto completo com MySQL real e BCrypt real; cada teste desfaz a própria transação.
+// Contexto completo com PostgreSQL real e BCrypt real; cada teste desfaz a própria transação.
 // O repositório é um spy apenas para simular a corrida; nos demais testes ele se comporta como o real.
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
@@ -81,7 +81,7 @@ class CadastrarUsuarioServiceIntegrationTest {
                         assertThat(e.getCampos()).containsExactly("email"));
     }
 
-    // Corrida: a checagem prévia não enxerga o outro cadastro; o UNIQUE do MySQL decide e o serviço
+    // Corrida: a checagem prévia não enxerga o outro cadastro; o UNIQUE do banco decide e o serviço
     // traduz pelo nome real da restrição informado pelo banco.
     @Test
     void corridaNoCpfDeveSerTraduzidaPelaRestricaoDoBanco() {

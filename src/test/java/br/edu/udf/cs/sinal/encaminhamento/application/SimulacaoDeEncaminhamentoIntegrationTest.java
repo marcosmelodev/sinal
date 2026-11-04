@@ -27,7 +27,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// Fluxo completo com MySQL real e relógio ajustável: registro -> ouvinte AFTER_COMMIT -> job (avanço e
+// Fluxo completo com PostgreSQL real e relógio ajustável: registro -> ouvinte AFTER_COMMIT -> job (avanço e
 // reconciliação). Sem @Transactional: cada etapa confirma de verdade. Os dados criados são removidos ao final.
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -105,9 +104,9 @@ class SimulacaoDeEncaminhamentoIntegrationTest {
 
     @AfterEach
     void removerDados() {
-        jdbc.update("DELETE e FROM encaminhamento e JOIN chamado c ON c.id = e.chamado_id WHERE c.usuario_id = ?",
+        jdbc.update("DELETE FROM encaminhamento e USING chamado c WHERE c.id = e.chamado_id AND c.usuario_id = ?",
                 usuarioId);
-        jdbc.update("DELETE t FROM chamado_transicao t JOIN chamado c ON c.id = t.chamado_id WHERE c.usuario_id = ?",
+        jdbc.update("DELETE FROM chamado_transicao t USING chamado c WHERE c.id = t.chamado_id AND c.usuario_id = ?",
                 usuarioId);
         jdbc.update("DELETE FROM chamado WHERE usuario_id = ?", usuarioId);
         jdbc.update("DELETE FROM usuario WHERE id = ?", usuarioId);
@@ -129,7 +128,7 @@ class SimulacaoDeEncaminhamentoIntegrationTest {
     }
 
     private static Instant utc(Object datetime) {
-        return datetime == null ? null : ((LocalDateTime) datetime).toInstant(ZoneOffset.UTC);
+        return datetime == null ? null : ((Timestamp) datetime).toLocalDateTime().toInstant(ZoneOffset.UTC);
     }
 
     private String estado(Long chamadoId) {

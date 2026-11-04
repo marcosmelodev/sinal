@@ -13,6 +13,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.transaction.IllegalTransactionStateException;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -127,11 +128,15 @@ class ContatosConcorrenciaTest {
     }
 
     // Documenta por que o bloqueio é necessário: a leitura comum permite violar o limite.
+    // REPEATABLE READ torna a corrida determinística: em READ COMMITTED (padrão do PostgreSQL) a releitura final de
+    // salvar enxerga o commit da outra transação e o desfecho varia, mas sem bloqueio continua incorreto.
     @Test
     void semBloqueioAsDuasTransacoesUltrapassariamOLimite() throws Exception {
         CountDownLatch ambasLeram = new CountDownLatch(2);
+        TransactionTemplate semBloqueio = new TransactionTemplate(transactionManager);
+        semBloqueio.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
 
-        Runnable adicionarSemBloqueio = () -> transacao.executeWithoutResult(status -> {
+        Runnable adicionarSemBloqueio = () -> semBloqueio.executeWithoutResult(status -> {
             ContatosDeConfianca contatos = adapter.buscarPorUsuario(usuarioId);
             ambasLeram.countDown();
             aguardar(ambasLeram);

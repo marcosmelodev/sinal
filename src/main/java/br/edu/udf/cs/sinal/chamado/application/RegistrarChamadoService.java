@@ -136,8 +136,8 @@ public class RegistrarChamadoService {
         }
     }
 
-    // O instante da captura é truncado em microssegundos (DATETIME(6)): o valor gravado é exatamente
-    // o comparado em um replay, sem o arredondamento do MySQL.
+    // O instante da captura é truncado em microssegundos (TIMESTAMP(6)): o valor gravado é exatamente
+    // o comparado em um replay, sem o arredondamento do banco.
     private static Localizacao paraDominio(LocalizacaoInformada informada) {
         if (informada == null) {
             return null;

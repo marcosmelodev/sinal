@@ -127,12 +127,12 @@ class ChamadoControllerTest {
     void removerDados() {
         for (String cpf : CPFS) {
             jdbc.update("""
-                    DELETE e FROM encaminhamento e JOIN chamado c ON c.id = e.chamado_id
-                    JOIN usuario u ON u.id = c.usuario_id WHERE u.cpf = ?""", cpf);
+                    DELETE FROM encaminhamento e USING chamado c, usuario u
+                    WHERE c.id = e.chamado_id AND u.id = c.usuario_id AND u.cpf = ?""", cpf);
             jdbc.update("""
-                    DELETE t FROM chamado_transicao t JOIN chamado c ON c.id = t.chamado_id
-                    JOIN usuario u ON u.id = c.usuario_id WHERE u.cpf = ?""", cpf);
-            jdbc.update("DELETE c FROM chamado c JOIN usuario u ON u.id = c.usuario_id WHERE u.cpf = ?", cpf);
+                    DELETE FROM chamado_transicao t USING chamado c, usuario u
+                    WHERE c.id = t.chamado_id AND u.id = c.usuario_id AND u.cpf = ?""", cpf);
+            jdbc.update("DELETE FROM chamado c USING usuario u WHERE u.id = c.usuario_id AND u.cpf = ?", cpf);
             jdbc.update("DELETE FROM usuario WHERE cpf = ?", cpf);
         }
     }
@@ -250,7 +250,7 @@ class ChamadoControllerTest {
         assertThat(eventos).hasSize(1);
     }
 
-    // Corrida real: a checagem prévia não enxerga o Chamado já gravado; o UNIQUE do MySQL decide e o serviço
+    // Corrida real: a checagem prévia não enxerga o Chamado já gravado; o UNIQUE do banco decide e o serviço
     // relê em nova transação e responde como replay (Etapa 4 §17), pelo nome real da restrição.
     @Test
     void corridaNaChaveDeveSerResolvidaPeloBancoEResponderComoReplay() throws Exception {

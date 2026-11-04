@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -201,29 +200,33 @@ class ChamadoConsultaJdbcTest {
         assertThat(consulta.listarHistorico(usuarioA, null, 10)).isEmpty();
     }
 
-    // Y5: a consulta percorre idx_chamado_historico na ordem do índice, sem ordenação extra.
+    // Y5: a consulta percorre idx_chamado_historico na ordem do índice, sem ordenação extra (nó Sort).
     @Test
-    void consultaDeveUsarOIndiceDoHistoricoSemFilesort() {
+    void consultaDeveUsarOIndiceDoHistoricoSemOrdenacaoExtra() {
         for (int i = 0; i < 40; i++) {
             padrao(usuarioA, T0.plusSeconds(i), 25.0f);
             padrao(usuarioB, T0.plusSeconds(i), 25.0f);
         }
-        // Sem ANALYZE TABLE: no MySQL ele faz commit implícito e romperia o rollback do teste.
         sincronizar();
+        // Com tão poucas linhas o planejador preferiria varrer a tabela; desligar a varredura sequencial (só nesta
+        // transação) faz o plano mostrar se a ordem do índice dispensa a ordenação.
+        jdbc.execute("ANALYZE chamado");
+        jdbc.execute("SET LOCAL enable_seqscan = off");
+        jdbc.execute("SET LOCAL enable_bitmapscan = off");
         LocalDateTime corte = LocalDateTime.ofInstant(T0.plusSeconds(20), ZoneOffset.UTC);
 
-        Map<String, Object> inicio = planoDoChamado(jdbc.queryForList("EXPLAIN " + ChamadoConsultaJdbc.SQL_INICIO,
+        String inicio = plano(jdbc.queryForList("EXPLAIN " + ChamadoConsultaJdbc.SQL_INICIO, String.class,
                 usuarioA, 21));
-        Map<String, Object> continuacao = planoDoChamado(jdbc.queryForList(
-                "EXPLAIN " + ChamadoConsultaJdbc.SQL_CONTINUACAO, usuarioA, corte, corte, 0L, 21));
+        String continuacao = plano(jdbc.queryForList("EXPLAIN " + ChamadoConsultaJdbc.SQL_CONTINUACAO, String.class,
+                usuarioA, corte, corte, 0L, 21));
 
-        for (Map<String, Object> plano : List.of(inicio, continuacao)) {
-            assertThat(plano.get("key")).isEqualTo("idx_chamado_historico");
-            assertThat(String.valueOf(plano.get("Extra"))).doesNotContainIgnoringCase("filesort");
+        for (String plano : List.of(inicio, continuacao)) {
+            assertThat(plano).contains("idx_chamado_historico");
+            assertThat(plano).doesNotContain("Sort");
         }
     }
 
-    private static Map<String, Object> planoDoChamado(List<Map<String, Object>> plano) {
-        return plano.stream().filter(linha -> "c".equals(linha.get("table"))).findFirst().orElseThrow();
+    private static String plano(List<String> linhas) {
+        return String.join("\n", linhas);
     }
 }

@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// API com MySQL real e o serviço da OpenAI simulado (nenhuma chamada sai para a internet).
+// API com PostgreSQL real e o serviço da OpenAI simulado (nenhuma chamada sai para a internet).
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)

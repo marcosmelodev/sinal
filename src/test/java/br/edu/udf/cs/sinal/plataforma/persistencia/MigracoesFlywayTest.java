@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
-// Mesma configuração do contextLoads, para reaproveitar o contexto e o container MySQL.
+// Mesma configuração do contextLoads, para reaproveitar o contexto e o container PostgreSQL.
 @SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @Transactional
@@ -68,24 +68,20 @@ class MigracoesFlywayTest {
         }
 
         @Test
-        void deveCriarAsTabelasDoNucleoComInnoDBEUtf8mb4() {
-            List<Map<String, Object>> tabelas = jdbc.queryForList("""
-                    SELECT table_name AS nome, engine, table_collation AS collation
-                    FROM information_schema.tables
-                    WHERE table_schema = DATABASE() AND table_name <> 'flyway_schema_history'""");
+        void deveCriarAsTabelasDoNucleo() {
+            List<String> tabelas = jdbc.queryForList("""
+                    SELECT table_name FROM information_schema.tables
+                    WHERE table_schema = current_schema() AND table_type = 'BASE TABLE'
+                      AND table_name <> 'flyway_schema_history'""", String.class);
 
-            assertThat(tabelas).extracting(t -> t.get("nome")).containsExactlyInAnyOrderElementsOf(TABELAS);
-            assertThat(tabelas).allSatisfy(t -> {
-                assertThat(t.get("engine")).isEqualTo("InnoDB");
-                assertThat((String) t.get("collation")).startsWith("utf8mb4");
-            });
+            assertThat(tabelas).containsExactlyInAnyOrderElementsOf(TABELAS);
         }
 
         @Test
         void naoDeveCriarTabelasDeEtapasFuturas() {
             Integer quantidade = jdbc.queryForObject("""
                     SELECT COUNT(*) FROM information_schema.tables
-                    WHERE table_schema = DATABASE() AND table_name IN ('refresh_token', 'auditoria_evento')""",
+                    WHERE table_schema = current_schema() AND table_name IN ('refresh_token', 'auditoria_evento')""",
                     Integer.class);
 
             assertThat(quantidade).isZero();
@@ -93,9 +89,8 @@ class MigracoesFlywayTest {
 
         @Test
         void deveCriarOsIndicesAprovados() {
-            List<String> indices = jdbc.queryForList("""
-                    SELECT DISTINCT index_name FROM information_schema.statistics
-                    WHERE table_schema = DATABASE()""", String.class);
+            List<String> indices = jdbc.queryForList(
+                    "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()", String.class);
 
             assertThat(indices).contains(
                     "idx_ocorrencia_tipo_orgao_ativo_ordem", "idx_chamado_historico",
@@ -106,21 +101,23 @@ class MigracoesFlywayTest {
 
         @Test
         void indiceDoHistoricoDeveOrdenarDataDeCriacaoDecrescente() {
-            List<Map<String, Object>> colunas = jdbc.queryForList("""
-                    SELECT column_name AS coluna, collation AS ordem FROM information_schema.statistics
-                    WHERE table_schema = DATABASE() AND index_name = 'idx_chamado_historico'
-                    ORDER BY seq_in_index""");
+            String definicao = jdbc.queryForObject("""
+                    SELECT indexdef FROM pg_indexes
+                    WHERE schemaname = current_schema() AND indexname = 'idx_chamado_historico'""", String.class);
 
-            assertThat(colunas).extracting(c -> c.get("coluna"), c -> c.get("ordem"))
-                    .containsExactly(tuple("usuario_id", "A"), tuple("data_criacao", "D"), tuple("id", "A"));
+            assertThat(definicao).endsWith("(usuario_id, data_criacao DESC, id)");
         }
 
         @Test
         void deveCriarAsChavesEstrangeirasAprovadas() {
             List<Map<String, Object>> chaves = jdbc.queryForList("""
-                    SELECT table_name AS tabela, column_name AS coluna, referenced_table_name AS referencia
-                    FROM information_schema.key_column_usage
-                    WHERE table_schema = DATABASE() AND referenced_table_name IS NOT NULL""");
+                    SELECT kcu.table_name AS tabela, kcu.column_name AS coluna, ccu.table_name AS referencia
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu
+                      ON kcu.constraint_schema = tc.constraint_schema AND kcu.constraint_name = tc.constraint_name
+                    JOIN information_schema.constraint_column_usage ccu
+                      ON ccu.constraint_schema = tc.constraint_schema AND ccu.constraint_name = tc.constraint_name
+                    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_schema = current_schema()""");
 
             assertThat(chaves).extracting(c -> c.get("tabela"), c -> c.get("coluna"), c -> c.get("referencia"))
                     .containsExactlyInAnyOrder(
@@ -181,7 +178,7 @@ class MigracoesFlywayTest {
         @Test
         void deveTerOnzeOcorrenciasAtivasPorOrgao() {
             List<Map<String, Object>> porOrgao = jdbc.queryForList(
-                    "SELECT orgao, COUNT(*) AS total, SUM(ativo) AS ativos FROM ocorrencia_tipo GROUP BY orgao");
+                    "SELECT orgao, COUNT(*) AS total, COUNT(*) FILTER (WHERE ativo) AS ativos FROM ocorrencia_tipo GROUP BY orgao");
 
             assertThat(porOrgao).extracting(o -> o.get("orgao"), o -> ((Number) o.get("total")).intValue(),
                             o -> ((Number) o.get("ativos")).intValue())

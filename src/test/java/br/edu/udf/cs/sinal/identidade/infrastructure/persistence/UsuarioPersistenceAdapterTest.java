@@ -141,8 +141,8 @@ class UsuarioPersistenceAdapterTest {
                 assertThat(lido.getDataCadastro()).isEqualTo(Instant.parse("2026-10-15T12:34:56.123456Z")));
     }
 
-    // DATETIME(6) guarda microssegundos e o MySQL ARREDONDA a fração excedente (não trunca),
-    // pois TIME_TRUNCATE_FRACTIONAL não está no sql_mode padrão. Instantes já em microssegundos não mudam.
+    // TIMESTAMP(6) guarda microssegundos e o PostgreSQL ARREDONDA a fração excedente (não trunca).
+    // Instantes já em microssegundos não mudam.
     @Test
     void deveArredondarNanossegundosParaMicrossegundos() {
         Instant comNanossegundos = Instant.parse("2026-10-15T12:34:56.123456789Z");

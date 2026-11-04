@@ -16,7 +16,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 // A ordem (data_criacao DESC, id ASC) é exatamente a de idx_chamado_historico (usuario_id, data_criacao DESC, id):
-// o MySQL percorre o índice sem ordenação extra. Instantes em UTC, como gravados pelo Hibernate (DATETIME(6)).
+// o banco percorre o índice sem ordenação extra. Instantes em UTC, como gravados pelo Hibernate (TIMESTAMP(6)).
 @Repository
 public class ChamadoConsultaJdbc implements ChamadoConsulta {
 

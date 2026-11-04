@@ -7,7 +7,7 @@ Alvo: `POST /api/v1/libras/chat` (Bearer JWT). Esperado sob carga: `200 {"respos
 
 ```bash
 brew install k6
-docker compose up -d                       # MySQL
+docker compose up -d                       # PostgreSQL
 cp load-tests/.env.example load-tests/.env
 # com a aplicação no ar, cadastre o usuário de teste:
 curl -X POST http://localhost:8080/api/v1/usuarios -H 'Content-Type: application/json' \
